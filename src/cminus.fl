@@ -1,0 +1,88 @@
+%{
+	#include <stdio.h>
+	#include <stdbool.h>
+	
+	#include "symboltable.h"
+	
+	#include "util.h"
+	#include "cminus.tab.h"
+	
+	extern SymbolTable *symbolTable;
+	extern int functionBraceCount;
+	extern bool errorOccured;
+	
+%}
+%option yylineno
+DECIMAL					0|[1-9_][0-9_]*
+OCTAL					[0-9_]+
+HEX						0x[0-9a-fA-F_]+
+FLOAT					[0-9_]+f|\.[0-9_]+f|[0-9_]+\.[0-9_]+f
+STRING					\"[^\"]*\"
+ID						[a-zA-Z_][a-zA-Z_0-9]*
+WHITESPACE				[ \t\n]+
+%%
+"-"{DECIMAL}			{ removeChar(yytext, '_'); yyleng = strlen(yytext); int val = atoi(yytext); yylval.a_int = val; return INT_LITERAL; }
+"-"{OCTAL}				{ removeChar(yytext, '_'); yyleng = strlen(yytext); int val; sscanf(yytext, "%o", &val); yylval.a_int = val; return INT_LITERAL; }
+"-"{HEX}				{ removeChar(yytext, '_'); yyleng = strlen(yytext); int val; sscanf(yytext, "%x", &val); yylval.a_int = val; return INT_LITERAL; }
+{DECIMAL}				{ removeChar(yytext, '_'); yyleng = strlen(yytext); int val = atoi(yytext); yylval.a_int = val; return UINT_LITERAL; }
+{OCTAL}					{ removeChar(yytext, '_'); yyleng = strlen(yytext); int val; sscanf(yytext, "%o", &val); yylval.a_int = val; return UINT_LITERAL; }
+{HEX}					{ removeChar(yytext, '_'); yyleng = strlen(yytext); int val; sscanf(yytext, "%x", &val); yylval.a_int = val; return UINT_LITERAL; }
+{FLOAT}					{ removeChar(yytext, '_'); yyleng = strlen(yytext); float val; sscanf(yytext, "%f", &val); yylval.a_float = val; return FLOAT_LITERAL; }
+{STRING}				{ strcpy(yylval.a_string, yytext); return STRING_LITERAL; }
+"int"					{ strcpy(yylval.a_string, "int"); return TOKEN_INT; }
+"float"					{ strcpy(yylval.a_string, "float"); return TOKEN_FLOAT; }
+"void"					{ strcpy(yylval.a_string, "void"); return TOKEN_VOID; }
+"if"					{ strcpy(yylval.a_string, "if"); return TOKEN_IF; }
+"else"					{ strcpy(yylval.a_string, "else"); return TOKEN_ELSE; }
+"return"				{ strcpy(yylval.a_string, "return"); return TOKEN_RETURN; }
+"while"					{ strcpy(yylval.a_string, "while"); return TOKEN_WHILE; }
+"typeof"				{ strcpy(yylval.a_string, "typeof"); return TOKEN_TYPEOF; }
+"pragma"				{ strcpy(yylval.a_string, "pragma"); return TOKEN_PRAGMA; }
+"writeln"				{ strcpy(yylval.a_string, "writeln"); return TOKEN_WRITELN; }
+"readInt"				{ strcpy(yylval.a_string, "readInt"); return TOKEN_READ_INT; }
+{ID}					{ strcpy(yylval.a_string, yytext); return TOKEN_ID; }
+{WHITESPACE} 			{}
+","						{ strcpy(yylval.a_string, ","); return TOKEN_COMMA; }
+">="					{ strcpy(yylval.a_string, ">="); return TOKEN_GE; }
+"<="					{ strcpy(yylval.a_string, "<="); return TOKEN_LE; }
+"<"						{ strcpy(yylval.a_string, "<"); return TOKEN_LESS; }
+">"						{ strcpy(yylval.a_string, ">"); return TOKEN_GREATER; }
+"=="					{ strcpy(yylval.a_string, "=="); return TOKEN_EQUALS; }
+"!="					{ strcpy(yylval.a_string, "!="); return TOKEN_NE; }
+";"						{ strcpy(yylval.a_string, ";"); return TOKEN_SEMICOLON; }
+"["						{ strcpy(yylval.a_string, "["); return TOKEN_L_BRACKET; }
+"]"						{ strcpy(yylval.a_string, "]"); return TOKEN_R_BRACKET; }
+"("						{ strcpy(yylval.a_string, "("); return TOKEN_L_PAREN; }
+")"						{ strcpy(yylval.a_string, ")"); return TOKEN_R_PAREN; }
+"{"						{ if( functionBraceCount != 1 ) createNewScope(); ++functionBraceCount; strcpy(yylval.a_string, "{"); return TOKEN_L_BRACE; }
+"}"						{ --functionBraceCount; if( functionBraceCount != 1 ) destroyCurrentScope(); strcpy(yylval.a_string, "}"); return TOKEN_R_BRACE; }
+"="						{ strcpy(yylval.a_string, "="); return TOKEN_ASSIGN; }
+"+"						{ strcpy(yylval.a_string, "+"); return TOKEN_ADD; }
+"-"						{ strcpy(yylval.a_string, "-"); return TOKEN_SUB; }
+"*"						{ strcpy(yylval.a_string, "*"); return TOKEN_MUL; }
+"//"[^\n]*				{ /* one line comment */ }
+"/*"([^\*]|\*[^/])*"*/"	{ /* multiline comment */ }
+"/"						{ strcpy(yylval.a_string, "/"); return TOKEN_DIV; }
+"%"						{ strcpy(yylval.a_string, "%"); return TOKEN_REM; }
+"."						{ return TOKEN_DOT; }
+.						{ char buff[100]; sprintf(buff, "Unexpected character '%s'", yytext); yyerror(buff); }
+%%
+// called by yyparse on error
+int yyerror(char *s)
+{
+	fprintf(stderr, "%d: error: \x1b[31;1m%s\x1b[0m\n", yylineno, s);
+	errorOccured = true;
+}
+
+int yyerror2(char *s, int lineno)
+{
+	fprintf(stderr, "%d: error: \x1b[31;1m%s\x1b[0m\n", lineno, s);
+	errorOccured = true;
+}
+
+int yywrap()
+{
+	return 1;
+}
+
+int getLineNo() { return yylineno; }
